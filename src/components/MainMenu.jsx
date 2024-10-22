@@ -1,17 +1,37 @@
-// src/components/MainMenu.js
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Button,
+  TextField,
+  Collapse,
 } from '@mui/material';
 import theme from '../theme';
 
-const MainMenu = ({ dificultad, setDificultad, handleIniciar, roomCode }) => {
+const MainMenu = ({ handleCreateRoom, handleJoinRoom }) => {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showJoinForm, setShowJoinForm] = useState(false);
+  const [roomName, setRoomName] = useState('');
+  const [roomCode, setRoomCode] = useState('');
+
+  const toggleCreateForm = () => {
+    setShowCreateForm((prev) => !prev);
+    setShowJoinForm(false);
+  };
+
+  const toggleJoinForm = () => {
+    setShowJoinForm((prev) => !prev);
+    setShowCreateForm(false);
+  };
+
+  const handleCreateRoomConfirm = () => {
+    handleCreateRoom(roomName);
+  };
+
+  const handleJoinRoomConfirm = () => {
+    handleJoinRoom(roomCode);
+  };
+
   return (
     <Box
       sx={{
@@ -22,6 +42,7 @@ const MainMenu = ({ dificultad, setDificultad, handleIniciar, roomCode }) => {
         justifyContent: 'center',
         alignItems: 'center',
         textAlign: 'center',
+        px: 2,
       }}
     >
       <Typography
@@ -34,68 +55,69 @@ const MainMenu = ({ dificultad, setDificultad, handleIniciar, roomCode }) => {
       >
         Bienvenid@s a la Lotería Millennial
       </Typography>
-      {/* Mostrar el código de la sala */}
-      {roomCode && (
-        <Typography variant="h5" sx={{ color: theme.palette.text.primary }}>
-          Código de sala: {roomCode}
-        </Typography>
-      )}
-      <FormControl sx={{ minWidth: 120, marginBottom: '2rem' }} variant="outlined">
-        <InputLabel id="dificultad-label" sx={{ color: '#fff' }}>
-          Dificultad
-        </InputLabel>
-        <Select
-          labelId="dificultad-label"
-          id="dificultad-select"
-          value={dificultad}
-          label="Dificultad"
-          onChange={(e) => setDificultad(e.target.value)}
-          sx={{
-            color: '#fff',
-            '.MuiOutlinedInput-notchedOutline': {
-              borderColor: '#fff',
-            },
-            '&:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: '#fff',
-            },
-            '.MuiSvgIcon-root': {
-              color: '#fff',
-            },
-          }}
-          MenuProps={{
-            PaperProps: {
-              sx: {
-                backgroundColor: '#4e54c8',
-              },
-            },
-            MenuListProps: {
-              sx: {
-                color: '#fff',
-                '& .MuiMenuItem-root:hover': {
-                  backgroundColor: '#8f94fb',
-                },
-              },
-            },
-          }}
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={toggleCreateForm}
+          sx={{ width: 200 }}
         >
-          <MenuItem value="facil">Fácil</MenuItem>
-          <MenuItem value="medio">Medio</MenuItem>
-          <MenuItem value="dificil">Difícil</MenuItem>
-        </Select>
-      </FormControl>
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleIniciar}
-        sx={{
-          width: 120,
-          height: 120,
-          borderRadius: '50%',
-          fontSize: '1.2rem',
-        }}
-      >
-        Iniciar
-      </Button>
+          Crear Sala
+        </Button>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={toggleJoinForm}
+          sx={{ width: 200 }}
+        >
+          Unirse a Sala
+        </Button>
+      </Box>
+
+      {/* Formulario para Crear Sala */}
+      <Collapse in={showCreateForm} sx={{ mt: 2 }}>
+        <TextField
+          label="Nombre de la sala"
+          value={roomName}
+          onChange={(e) => setRoomName(e.target.value)}
+          sx={{ mb: 2, width: '300px' }}
+          InputLabelProps={{ style: { color: '#fff' } }}
+          InputProps={{
+            style: { color: '#fff' },
+          }}
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleCreateRoomConfirm}
+          disabled={!roomName}
+        >
+          Confirmar
+        </Button>
+      </Collapse>
+
+      {/* Formulario para Unirse a Sala */}
+      <Collapse in={showJoinForm} sx={{ mt: 2 }}>
+        <TextField
+          label="Código de la sala"
+          value={roomCode}
+          onChange={(e) => setRoomCode(e.target.value)}
+          sx={{ mb: 2, width: '300px' }}
+          InputLabelProps={{ style: { color: '#fff' } }}
+          InputProps={{
+            style: { color: '#fff' },
+          }}
+        />
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={handleJoinRoomConfirm}
+          disabled={!roomCode}
+        >
+          Confirmar
+        </Button>
+      </Collapse>
     </Box>
   );
 };
