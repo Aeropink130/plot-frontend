@@ -1,6 +1,6 @@
 // src/components/GameScreen.js
-import React from 'react';
-import { Box, Button, LinearProgress } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Button, LinearProgress, Grid } from '@mui/material';
 import Cartas from './Cartas.jsx';
 import theme from '../theme';
 
@@ -10,10 +10,19 @@ const GameScreen = ({
   imagenesPreCargadas,
   tiempoTranscurrido,
   tiempoTotal,
-  pausado,
-  handlePauseResume,
-  handleReiniciar,
+  playerTemplate,
+  handleGane,
 }) => {
+  const [markedCards, setMarkedCards] = useState([]);
+
+  const toggleCard = (cardName) => {
+    if (markedCards.includes(cardName)) {
+      setMarkedCards(markedCards.filter((name) => name !== cardName));
+    } else {
+      setMarkedCards([...markedCards, cardName]);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -55,18 +64,42 @@ const GameScreen = ({
         />
       </Box>
 
-      {/* Botones */}
+      {/* Plantilla del jugador */}
+      <Box sx={{ marginTop: '2rem', width: '80%' }}>
+        <Grid container spacing={1}>
+          {playerTemplate.map((card, index) => (
+            <Grid item xs={3} key={index}>
+              <Box
+                sx={{
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  padding: '4px',
+                  backgroundColor: markedCards.includes(card.nombre)
+                    ? 'lightgreen'
+                    : 'white',
+                  cursor: 'pointer',
+                }}
+                onClick={() => toggleCard(card.nombre)}
+              >
+                <img
+                  src={imagenesPreCargadas[card.nombre]}
+                  alt={card.nombre}
+                  style={{ width: '100%', height: 'auto' }}
+                />
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+
+      {/* Botón "¡Gané!" */}
       <Box sx={{ marginTop: '1rem' }}>
         <Button
           variant="contained"
           color="primary"
-          onClick={handlePauseResume}
-          sx={{ marginRight: '1rem' }}
+          onClick={() => handleGane(markedCards)}
         >
-          {pausado ? 'Reanudar' : 'Pausar'}
-        </Button>
-        <Button variant="contained" color="secondary" onClick={handleReiniciar}>
-          Reiniciar
+          ¡Gané!
         </Button>
       </Box>
     </Box>

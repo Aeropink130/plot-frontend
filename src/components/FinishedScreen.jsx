@@ -3,7 +3,9 @@ import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import theme from '../theme';
 
-const FinishedScreen = ({ handleReiniciar }) => {
+const FinishedScreen = ({ handleReiniciar, ganador, players }) => {
+  const winnerPlayer = players.find((player) => player.id === ganador);
+
   return (
     <Box
       sx={{
@@ -24,7 +26,7 @@ const FinishedScreen = ({ handleReiniciar }) => {
           textTransform: 'uppercase',
         }}
       >
-        ¡Bien Jugado!
+        ¡{winnerPlayer ? winnerPlayer.name : 'Alguien'} ha ganado!
       </Typography>
       <Button
         variant="contained"

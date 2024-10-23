@@ -1,43 +1,44 @@
 // src/App.js
-import React, { useEffect, useMemo, useState, useRef } from 'react';
-import './App.css';
-import { Howl, Howler } from 'howler';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import "./App.css";
+import { Howl, Howler } from "howler";
+import { Client } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
+import { v4 as uuidv4 } from "uuid";
 
-import MainMenu from './components/MainMenu';
-import LoadingScreen from './components/LoadingScreen';
-import Countdown from './components/Countdown';
-import GameScreen from './components/GameScreen';
-import FinishedScreen from './components/FinishedScreen';
-import WaitingRoomScreen from './components/WatingRoomScreen.jsx';
-import VolumeControl from './components/VolumeControl';
-import { mezclarCartas } from './utils';
-import cartas from './cartas.js';
+import MainMenu from "./components/MainMenu";
+import LoadingScreen from "./components/LoadingScreen";
+import Countdown from "./components/Countdown";
+import GameScreen from "./components/GameScreen";
+import FinishedScreen from "./components/FinishedScreen";
+import WaitingRoomScreen from "./components/WatingRoomScreen.jsx";
+import VolumeControl from "./components/VolumeControl";
+import { mezclarCartas } from "./utils";
+import cartas from "./cartas.js";
 
 function App() {
   // Estados y referencias
-  const [currentScreen, setCurrentScreen] = useState('mainMenu'); // 'mainMenu', 'waitingRoom', 'game'
-  const [roomName, setRoomName] = useState('');
-  const [roomCode, setRoomCode] = useState('');
+  const [currentScreen, setCurrentScreen] = useState("mainMenu");
+  const [roomName, setRoomName] = useState("");
+  const [roomCode, setRoomCode] = useState("");
   const [players, setPlayers] = useState([]);
   const [isHost, setIsHost] = useState(false);
-  
+  const [difficulty, setDifficulty] = useState("dificil");
+  // eslint-disable-next-line no-unused-vars
+  const [playerId, setPlayerId] = useState(uuidv4());
 
   // Estados del juego
   const [intervalo, setIntervalo] = useState(1000);
   const [indiceCarta, setIndiceCarta] = useState(0);
-  const [pausado, setPausado] = useState(false);
   const [iniciado, setIniciado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [terminado, setTerminado] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [dificultad, setDificultad] = useState('dificil');
   const [volume, setVolume] = useState(1);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
   const [contador, setContador] = useState(null);
   const [cartasMezcladas, setCartasMezcladas] = useState([]);
-
+  const [playerTemplate, setPlayerTemplate] = useState([]);
+  const [ganador, setGanador] = useState(null);
 
   const soundRef = useRef(null);
   const sonidosPreCargadosRef = useRef(null);
@@ -53,41 +54,46 @@ function App() {
   const hasPlayedRef = useRef(false);
 
   const stompClientRef = useRef(null);
+  const clientIdRef = useRef(null);
 
   // Efecto para establecer la conexión WebSocket una sola vez
   useEffect(() => {
-    const socket = new SockJS('http://localhost:8080/createConnection');
+    console.log("playerId:", playerId);
+    const socket = new SockJS("http://localhost:8080/createConnection");
     const client = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
       onConnect: () => {
-        console.log('Conectado al WebSocket');
+        console.log("Conectado al WebSocket");
 
         stompClientRef.current = client;
+        clientIdRef.current = client.webSocket._transport.url.split("/").pop();
 
         // Suscripciones que no dependen de roomCode
-        client.subscribe('/user/queue/roomCreated', (message) => {
+        client.subscribe("/user/queue/roomCreated", (message) => {
           const response = JSON.parse(message.body);
           setRoomCode(response.roomCode);
           setPlayers(response.players || []);
-          setCurrentScreen('waitingRoom');
+          setPlayerTemplate(response.template || []); // Guardar la plantilla recibida
+          setCurrentScreen("waitingRoom");
         });
 
-        client.subscribe('/user/queue/joinedRoom', (message) => {
+        client.subscribe("/user/queue/joinedRoom", (message) => {
           const response = JSON.parse(message.body);
           setRoomName(response.roomName);
           setPlayers(response.players || []);
-          setCurrentScreen('waitingRoom');
+          setPlayerTemplate(response.template || []);
+          setCurrentScreen("waitingRoom");
         });
 
-        client.subscribe('/user/queue/error', (message) => {
+        client.subscribe("/user/queue/error", (message) => {
           const error = message.body;
-          console.error('Error:', error);
+          console.error("Error:", error);
           // Manejar el error, mostrar mensaje al usuario, etc.
         });
       },
       onDisconnect: () => {
-        console.log('Desconectado del WebSocket');
+        console.log("Desconectado del WebSocket");
       },
     });
 
@@ -96,44 +102,55 @@ function App() {
     return () => {
       client.deactivate();
     };
-  }, []); // Ejecutar solo una vez al montar el componente
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Efecto para manejar las suscripciones que dependen de roomCode y currentScreen
   useEffect(() => {
     const client = stompClientRef.current;
-    if (!client || !client.connected) return;
-  
+    if (!client || !client.connected || !roomCode) return;
+
     let roomSubscription;
-  
-    if (currentScreen === 'waitingRoom' && roomCode) {
-      roomSubscription = client.subscribe('/topic/room/' + roomCode, (message) => {
+
+    roomSubscription = client.subscribe(
+      "/topic/room/" + roomCode,
+      (message) => {
         const response = JSON.parse(message.body);
+        console.log("RoomUpdate recibido:", response); // Agrega este log
         setPlayers(response.players || []);
-        
+
         // Actualizar la dificultad si está presente en el mensaje
         if (response.difficulty) {
-          setDificultad(response.difficulty);
+          console.log("Actualizando dificultad a:", response.difficulty); // Agrega este log
+          setDifficulty(response.difficulty);
         }
-        
+
+        // Verificar si hay un ganador
+        if (response.winnerId) {
+          setGanador(response.winnerId);
+          setTerminado(true);
+          setCurrentScreen("finished");
+        }
+
         if (response.startGame) {
           // Establecer el mazo mezclado recibido del servidor
           setCartasMezcladas(response.shuffledDeck);
-          setCurrentScreen('game');
+          setCurrentScreen("game");
           handleIniciar(); // Iniciar el juego al recibir la señal
         }
-      });
-    }
-  
+      }
+    );
+
     return () => {
-      // Desuscribirse del canal cuando cambien las dependencias o el componente se desmonte
       if (roomSubscription) {
         roomSubscription.unsubscribe();
       }
     };
-  }, [currentScreen, roomCode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode]);
 
   // Función para manejar la creación de salas
-  const handleCreateRoom = (name) => {
+  const handleCreateRoom = (name, playerName) => {
     setRoomName(name);
     setIsHost(true);
 
@@ -141,16 +158,16 @@ function App() {
 
     if (client && client.connected) {
       client.publish({
-        destination: '/app/createRoom',
-        body: JSON.stringify({ roomName: name }),
+        destination: "/app/createRoom",
+        body: JSON.stringify({ roomName: name, playerId, playerName }), // Incluir playerName
       });
     } else {
       // Esperar a que el WebSocket esté conectado antes de publicar
       const interval = setInterval(() => {
         if (client && client.connected) {
           client.publish({
-            destination: '/app/createRoom',
-            body: JSON.stringify({ roomName: name }),
+            destination: "/app/createRoom",
+            body: JSON.stringify({ roomName: name, playerId, playerName }), // Incluir playerName
           });
           clearInterval(interval);
         }
@@ -159,8 +176,8 @@ function App() {
   };
 
   // Función para manejar la unión a salas
-  const handleJoinRoom = (code) => {
-    console.log('Intentando unirse a la sala con código:', code);
+  const handleJoinRoom = (code, playerName) => {
+    console.log("Intentando unirse a la sala con código:", code);
     setRoomCode(code);
     setIsHost(false);
 
@@ -168,16 +185,24 @@ function App() {
 
     if (client && client.connected) {
       client.publish({
-        destination: '/app/joinRoom',
-        body: JSON.stringify({ roomCode: code }),
+        destination: "/app/joinRoom",
+        body: JSON.stringify({
+          roomCode: code,
+          playerId: playerId,
+          playerName,
+        }), // Incluir playerName
       });
     } else {
       // Esperar a que el WebSocket esté conectado antes de publicar
       const interval = setInterval(() => {
         if (client && client.connected) {
           client.publish({
-            destination: '/app/joinRoom',
-            body: JSON.stringify({ roomCode: code }),
+            destination: "/app/joinRoom",
+            body: JSON.stringify({
+              roomCode: code,
+              playerId: playerId,
+              playerName,
+            }), // Incluir playerName
           });
           clearInterval(interval);
         }
@@ -187,18 +212,18 @@ function App() {
 
   const handleStartGame = () => {
     const client = stompClientRef.current;
-  
+
     // Mezclar las cartas y obtener el mazo mezclado
     const shuffledDeck = mezclarCartas([...cartas]);
-  
+
     // Enviar el mazo mezclado al servidor
     if (client && client.connected) {
       client.publish({
-        destination: '/app/startGame',
+        destination: "/app/startGame",
         body: JSON.stringify({ roomCode, shuffledDeck }),
       });
     } else {
-      console.error('stompClient no está conectado');
+      console.error("stompClient no está conectado");
     }
   };
 
@@ -206,36 +231,33 @@ function App() {
   const handleCancel = () => {
     const stompClient = stompClientRef.current;
     stompClient.publish({
-      destination: '/app/leaveRoom',
+      destination: "/app/leaveRoom",
       body: JSON.stringify({ roomCode }),
     });
     // Resetear estados
-    setCurrentScreen('mainMenu');
-    setRoomName('');
-    setRoomCode('');
+    setCurrentScreen("mainMenu");
+    setRoomName("");
+    setRoomCode("");
     setPlayers([]);
     setIsHost(false);
   };
 
-  // Lógica del juego
-  // Memoizar cartas mezcladas
-  // const cartasMezcladas = useMemo(() => {
-  //   if (!iniciado) return [];
-  //   return mezclarCartas([...cartas]);
-  // }, [iniciado]);
-
   // Pre-cargar sonidos solo una vez
-useEffect(() => {
-  if (iniciado && !sonidosPreCargadosRef.current && cartasMezcladas.length > 0) {
-    const sonidos = {};
-    cartasMezcladas.forEach((carta) => {
-      sonidos[carta.nombre] = new Howl({
-        src: [carta.audio],
+  useEffect(() => {
+    if (
+      iniciado &&
+      !sonidosPreCargadosRef.current &&
+      cartasMezcladas.length > 0
+    ) {
+      const sonidos = {};
+      cartasMezcladas.forEach((carta) => {
+        sonidos[carta.nombre] = new Howl({
+          src: [carta.audio],
+        });
       });
-    });
-    sonidosPreCargadosRef.current = sonidos;
-  }
-}, [iniciado, cartasMezcladas]);
+      sonidosPreCargadosRef.current = sonidos;
+    }
+  }, [iniciado, cartasMezcladas]);
 
   // Efecto para actualizar el volumen globalmente
   useEffect(() => {
@@ -243,29 +265,35 @@ useEffect(() => {
   }, [volume]);
 
   // Memoizar imágenes precargadas
-const imagenesPreCargadas = useMemo(() => {
-  const imagenes = {};
-  cartasMezcladas.forEach((carta) => {
-    const img = new Image();
-    img.src = carta.imagen;
-    imagenes[carta.nombre] = img.src;
-  });
-  return imagenes;
-}, [cartasMezcladas]);
+  const imagenesPreCargadas = useMemo(() => {
+    const imagenes = {};
+    cartasMezcladas.forEach((carta) => {
+      const img = new Image();
+      img.src = carta.imagen;
+      imagenes[carta.nombre] = img.src;
+    });
+    // Pre-cargar imágenes de la plantilla del jugador
+    playerTemplate.forEach((carta) => {
+      const img = new Image();
+      img.src = carta.imagen;
+      imagenes[carta.nombre] = img.src;
+    });
+    return imagenes;
+  }, [cartasMezcladas, playerTemplate]);
 
   // Función para manejar el inicio
   const handleIniciar = () => {
     setCargando(true);
-  
+
     let intervaloSeleccionado;
-    switch (dificultad) {
-      case 'facil':
-        intervaloSeleccionado = 5000;
+    switch (difficulty) {
+      case "facil":
+        intervaloSeleccionado = 10000;
         break;
-      case 'medio':
+      case "medio":
         intervaloSeleccionado = 2500;
         break;
-      case 'dificil':
+      case "dificil":
         intervaloSeleccionado = 1000;
         break;
       default:
@@ -273,7 +301,7 @@ const imagenesPreCargadas = useMemo(() => {
     }
     setIntervalo(intervaloSeleccionado);
     intervalRemainingRef.current = intervaloSeleccionado;
-  
+
     setTimeout(() => {
       setCargando(false);
       // Iniciar contador regresivo
@@ -335,28 +363,28 @@ const imagenesPreCargadas = useMemo(() => {
         intervalRemainingRef.current = intervalo;
 
         timeoutRef.current = setTimeout(() => {
-          if (pausado || terminado) return;
+          if (terminado) return;
           setIsSoundEnded(false);
           if (indiceCarta >= cartasMezcladas.length - 1) {
             setTerminado(true);
+            setCurrentScreen("finished");
           } else {
             setIndiceCarta((prev) => prev + 1);
           }
         }, intervalo);
       };
 
-      sonido.once('end', handleEnd);
+      sonido.once("end", handleEnd);
 
       return () => {
-        sonido.off('end', handleEnd);
+        sonido.off("end", handleEnd);
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
         }
       };
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indiceCarta, iniciado, terminado]);
+  }, [indiceCarta, iniciado, terminado, intervalo, cartasMezcladas]);
 
   // Efecto para actualizar el tiempo transcurrido usando requestAnimationFrame
   useEffect(() => {
@@ -381,7 +409,7 @@ const imagenesPreCargadas = useMemo(() => {
       }
     };
 
-    if (iniciado && !terminado && !pausado) {
+    if (iniciado && !terminado) {
       startTimeRef.current = Date.now() - (pauseTimeRef.current || 0);
       animationFrameId = requestAnimationFrame(updateProgress);
     }
@@ -391,90 +419,26 @@ const imagenesPreCargadas = useMemo(() => {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [iniciado, terminado, pausado, tiempoTotal, isSoundEnded]);
+  }, [iniciado, terminado, tiempoTotal, isSoundEnded]);
 
-  // Función para pausar audio y temporizador
-  const pauseAudioAndTimer = () => {
-    const sonido = soundRef.current;
-    if (sonido && sonido.playing()) {
-      sonido.pause();
-    }
+  // Función para manejar el "¡Gané!"
+  const handleGane = (markedCards) => {
+    const client = stompClientRef.current;
 
-    if (timeoutRef.current) {
-      const elapsed = Date.now() - intervalStartTimeRef.current;
-      intervalRemainingRef.current -= elapsed;
-      if (intervalRemainingRef.current < 0) {
-        intervalRemainingRef.current = 0;
-      }
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    console.log("Enviando solicitud de victoria con playerId:", playerId);
 
-    // Guardar el tiempo transcurrido al pausar
-    pauseTimeRef.current = Date.now() - startTimeRef.current;
-  };
-
-  // Función para reanudar audio y temporizador
-  const resumeAudioAndTimer = () => {
-    const sonido = soundRef.current;
-    if (sonido) {
-      if (!isSoundEnded) {
-        sonido.play();
-      } else {
-        if (intervalRemainingRef.current <= 0) {
-          // Avanzar inmediatamente a la siguiente carta
-          setIsSoundEnded(false);
-          if (indiceCarta >= cartasMezcladas.length - 1) {
-            setTerminado(true);
-          } else {
-            setIndiceCarta((prev) => prev + 1);
-          }
-        } else {
-          // Reanudar intervalo
-          intervalStartTimeRef.current = Date.now();
-          timeoutRef.current = setTimeout(() => {
-            if (pausado || terminado) return;
-            setIsSoundEnded(false);
-            if (indiceCarta >= cartasMezcladas.length - 1) {
-              setTerminado(true);
-            } else {
-              setIndiceCarta((prev) => prev + 1);
-            }
-          }, intervalRemainingRef.current);
-        }
-      }
-    }
-
-    // Restablecer el tiempo de pausa
-    startTimeRef.current = Date.now() - pauseTimeRef.current;
-    pauseTimeRef.current = null;
-  };
-
-  // Manejador para el botón de pausa/reanudar
-  const handlePauseResume = () => {
-    if (!pausado) {
-      pauseAudioAndTimer();
+    if (client && client.connected) {
+      client.publish({
+        destination: "/app/checkWin",
+        body: JSON.stringify({
+          roomCode,
+          playerId,
+          markedCards,
+          currentCardIndex: indiceCarta,
+        }),
+      });
     } else {
-      resumeAudioAndTimer();
-    }
-    setPausado(!pausado);
-  };
-
-  // Función para actualizar la dificultad
-  const updateDifficulty = (newDifficulty) => {
-    setDificultad(newDifficulty);
-  
-    if (isHost) {
-      const client = stompClientRef.current;
-  
-      if (client && client.connected) {
-        client.publish({
-          destination: '/app/updateDifficulty',
-          body: JSON.stringify({ roomCode, difficulty: newDifficulty }),
-        });
-      } else {
-        console.error('stompClient no está conectado');
-      }
+      console.error("stompClient no está conectado");
     }
   };
 
@@ -493,7 +457,6 @@ const imagenesPreCargadas = useMemo(() => {
     }
 
     setIndiceCarta(0);
-    setPausado(false);
     setTerminado(false);
     setIniciado(false);
     setIsSoundEnded(false);
@@ -501,22 +464,41 @@ const imagenesPreCargadas = useMemo(() => {
     setTiempoTranscurrido(0);
     setTiempoTotal(0);
     setContador(null);
-    setCurrentScreen('mainMenu');
-    setRoomName('');
-    setRoomCode('');
+    setCurrentScreen("mainMenu");
+    setRoomName("");
+    setRoomCode("");
     setPlayers([]);
     setIsHost(false);
+    setPlayerTemplate([]);
+    setGanador(null);
+  };
+
+  const updateDifficulty = (newDifficulty) => {
+    setDifficulty(newDifficulty);
+
+    if (isHost) {
+      const client = stompClientRef.current;
+
+      if (client && client.connected) {
+        client.publish({
+          destination: "/app/updateDifficulty",
+          body: JSON.stringify({ roomCode, difficulty: newDifficulty }),
+        });
+      } else {
+        console.error("stompClient no está conectado");
+      }
+    }
   };
 
   return (
     <>
-      {currentScreen === 'mainMenu' && (
+      {currentScreen === "mainMenu" && (
         <MainMenu
           handleCreateRoom={handleCreateRoom}
           handleJoinRoom={handleJoinRoom}
         />
       )}
-      {currentScreen === 'waitingRoom' && (
+      {currentScreen === "waitingRoom" && (
         <WaitingRoomScreen
           roomName={roomName}
           roomCode={roomCode}
@@ -524,17 +506,22 @@ const imagenesPreCargadas = useMemo(() => {
           isHost={isHost}
           handleStartGame={handleStartGame}
           handleCancel={handleCancel}
+          difficulty={difficulty}
           setDifficulty={updateDifficulty}
         />
       )}
-      {currentScreen === 'game' && (
+      {currentScreen === "game" && (
         <>
-          {contador !== null ? (
+          {contador !== null && !iniciado && !terminado ? (
             <Countdown contador={contador} />
           ) : cargando ? (
             <LoadingScreen />
           ) : terminado ? (
-            <FinishedScreen handleReiniciar={handleReiniciar} />
+            <FinishedScreen
+              handleReiniciar={handleReiniciar}
+              ganador={ganador}
+              players={players}
+            />
           ) : (
             <GameScreen
               cartasMezcladas={cartasMezcladas}
@@ -542,12 +529,18 @@ const imagenesPreCargadas = useMemo(() => {
               imagenesPreCargadas={imagenesPreCargadas}
               tiempoTranscurrido={tiempoTranscurrido}
               tiempoTotal={tiempoTotal}
-              pausado={pausado}
-              handlePauseResume={handlePauseResume}
-              handleReiniciar={handleReiniciar}
+              playerTemplate={playerTemplate}
+              handleGane={handleGane}
             />
           )}
         </>
+      )}
+      {currentScreen === "finished" && (
+        <FinishedScreen
+          handleReiniciar={handleReiniciar}
+          ganador={ganador}
+          players={players}
+        />
       )}
       <VolumeControl
         volume={volume}

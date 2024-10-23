@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   Typography,
@@ -9,8 +9,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-} from '@mui/material';
-import theme from '../theme';
+} from "@mui/material";
+import theme from "../theme";
 
 const WaitingRoomScreen = ({
   roomName,
@@ -20,31 +20,29 @@ const WaitingRoomScreen = ({
   handleStartGame,
   handleCancel,
   difficulty,
-  setDifficulty, // Añadido para actualizar la dificultad
+  setDifficulty,
 }) => {
   const canStartGame = players.length >= 2;
 
   return (
     <Box
       sx={{
-        height: '100vh',
+        height: "100vh",
         background: theme.palette.background.default,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        textAlign: 'center',
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
         pt: 4,
         px: 2,
-      }}
-    >
+      }}>
       <Typography
         variant="h4"
         sx={{
-          marginBottom: '1rem',
+          marginBottom: "1rem",
           color: theme.palette.text.primary,
-          textTransform: 'uppercase',
-        }}
-      >
+          textTransform: "uppercase",
+        }}>
         Sala de Espera
       </Typography>
       <Typography variant="h5" sx={{ color: theme.palette.text.primary }}>
@@ -70,16 +68,44 @@ const WaitingRoomScreen = ({
       {isHost && (
         <Box sx={{ mt: 2 }}>
           <FormControl fullWidth>
-            <InputLabel id="dificultad-label">Dificultad</InputLabel>
+            <InputLabel
+              id="dificultad-label"
+              sx={{ color: theme.palette.primary.contrastText }}>
+              Dificultad
+            </InputLabel>
             <Select
               labelId="dificultad-label"
               value={difficulty}
               label="Dificultad"
               onChange={(e) => setDifficulty(e.target.value)}
-            >
-              <MenuItem value="facil">Fácil</MenuItem>
-              <MenuItem value="medio">Medio</MenuItem>
-              <MenuItem value="dificil">Difícil</MenuItem>
+              sx={{
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
+                "& .MuiSvgIcon-root": {
+                  color: theme.palette.primary.contrastText,
+                },
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    backgroundColor: theme.palette.primary.main,
+                  },
+                },
+              }}>
+              {["facil", "medio", "dificil"].map((level) => (
+                <MenuItem
+                  key={level}
+                  value={level}
+                  sx={{
+                    backgroundColor: theme.palette.primary.main,
+                    color: theme.palette.secondary.contrastText,
+                    "&:hover": {
+                      backgroundColor: theme.palette.secondary.main,
+                    },
+                  }}>
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
         </Box>
@@ -91,8 +117,7 @@ const WaitingRoomScreen = ({
           color="primary"
           onClick={handleStartGame}
           sx={{ mt: 2 }}
-          disabled={!canStartGame}
-        >
+          disabled={!canStartGame}>
           Iniciar
         </Button>
       )}
@@ -100,8 +125,7 @@ const WaitingRoomScreen = ({
         variant="contained"
         color="secondary"
         onClick={handleCancel}
-        sx={{ mt: 2 }}
-      >
+        sx={{ mt: 2 }}>
         Cancelar
       </Button>
     </Box>
