@@ -59,7 +59,9 @@ function App() {
   // Efecto para establecer la conexión WebSocket una sola vez
   useEffect(() => {
     console.log("playerId:", playerId);
-    const socket = new SockJS("http://localhost:8080/createConnection");
+    const socket = new SockJS(
+      "https://plot-backend.onrender.com/createConnection"
+    );
     const client = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
